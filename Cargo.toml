@@ -1,0 +1,26 @@
+[package]
+name = "rev-conn"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["rlib"]
+path = "src/lib.rs"
+
+[[bin]]
+name = "rev-conn-server"
+path = "src/server.rs"
+
+[[bin]]
+name = "rev-conn-client"
+path = "src/client.rs"
+
+[dependencies]
+tokio = { version = "1", features = ["macros", "io-util", "rt-multi-thread", "net", "sync", "time"] }
+futures = "0.3"
+clap = { version = "^3.1", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+bincode = "^1.3"
+log = "0.4"
+env_logger = "0.9"
+uuid = { version = "1", features = ["v4", "fast-rng"] }
