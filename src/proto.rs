@@ -65,6 +65,7 @@ pub(crate) enum LinkOp {
 
 pub(crate) async fn read_message<T: serde::de::DeserializeOwned>(
     stream: &mut tcp::OwnedReadHalf,
+    max_size: usize,
 ) -> Result<Option<T>, ConnectionError> {
     let size = match stream.read_u32().await {
         Ok(x) => x as usize,
@@ -75,6 +76,9 @@ pub(crate) async fn read_message<T: serde::de::DeserializeOwned>(
             return Err(err.into());
         }
     };
+    if size > max_size {
+        return Ok(None);
+    }
     let mut buf = Vec::with_capacity(size);
     buf.resize(size, 0);
     stream.read_exact(&mut buf).await?;

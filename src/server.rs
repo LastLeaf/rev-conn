@@ -73,7 +73,7 @@ async fn connection(
 ) -> Result<(), ConnectionError> {
     let peer_addr = stream.peer_addr()?;
     let (mut read_stream, mut write_stream) = stream.into_split();
-    let info = match read_message::<ClientStartInfo>(&mut read_stream).await? {
+    let info = match read_message::<ClientStartInfo>(&mut read_stream, 256).await? {
         Some(x) => x,
         None => {
             error!("A connection sent a wrong greet message");
@@ -104,7 +104,7 @@ async fn connection(
             });
             let _provide_services = ProvideServices::new(services.clone(), provide, &conn_send, peer_addr);
             let mut link_target = HashMap::new();
-            while let Some(op) = read_message::<LinkOp>(&mut read_stream).await? {
+            while let Some(op) = read_message::<LinkOp>(&mut read_stream, u32::MAX as usize).await? {
                 match op {
                     LinkOp::Start { id, target_service, timeout_secs } => {
                         let target = services.lock().unwrap().map.get(&target_service).cloned();

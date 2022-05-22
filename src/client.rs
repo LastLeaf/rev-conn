@@ -105,7 +105,7 @@ impl ControlConnection {
                 }
             });
         }
-        while let Some(op) = read_message::<LinkOp>(&mut read_stream).await? {
+        while let Some(op) = read_message::<LinkOp>(&mut read_stream, u32::MAX as usize).await? {
             match op {
                 LinkOp::Start { id, target_service, timeout_secs: _ } => {
                     let def = self.provide_services.iter().find(|x| x.name == target_service);
