@@ -92,7 +92,7 @@ pub(crate) async fn write_message<T: serde::ser::Serialize>(
         Err(ConnectionError::Custom("Message too long".into()))?;
     }
     stream.write_u32(len as u32).await?;
-    stream.write(&buf).await?;
+    stream.write_all(&buf).await?;
     Ok(())
 }
 

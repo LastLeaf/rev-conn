@@ -158,7 +158,7 @@ impl ControlConnection {
                 }
                 LinkOp::Data { id, payload } => {
                     if let Some(write_dest) = link_target.get_mut(&id) {
-                        if write_dest.write(&payload).await.is_err() {
+                        if write_dest.write_all(&payload).await.is_err() {
                             debug!("Failed to send data to requested service (conn id {:?})", id);
                             let _ = conn_send.send(LinkOp::End { id }).await;
                         }

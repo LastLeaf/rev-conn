@@ -139,12 +139,13 @@ async fn connection(
                     LinkOp::Accept { id } => {
                         let target = services.lock().unwrap().link_src.remove(&id);
                         if let Some(target) = target {
+                            link_target.insert(id, target.clone());
                             if target.send(LinkOp::Accept { id }).await.is_err() {
                                 warn!("Data connection from {} failed to build service (conn id {:?})", peer_addr, id);
+                                link_target.remove(&id);
                                 let _ = target.send(LinkOp::End { id }).await;
                             } else {
                                 debug!("Data connection from {} accepted service (conn id {:?})", peer_addr, id);
-                                link_target.insert(id, target);
                             }
                         } else {
                             warn!("Data connection from {} accepted an invalid or timeout client (conn id {:?})", peer_addr, id);
