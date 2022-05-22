@@ -93,12 +93,25 @@ async fn connection(
             info!("Control connection built from {}", peer_addr);
             let (conn_send, mut conn_recv) = mpsc::channel(65536);
             tokio::task::spawn(async move {
-                while let Some(data) = conn_recv.recv().await {
-                    if write_message(&mut write_stream, data).await.is_err() {
-                        while conn_recv.recv().await.is_some() {
-                            // empty
+                loop {
+                    match tokio::time::timeout(std::time::Duration::from_secs(KEEP_ALIVE_INTERVAL as u64), conn_recv.recv()).await {
+                        Ok(Some(data)) => {
+                            if write_message(&mut write_stream, data).await.is_err() {
+                                while conn_recv.recv().await.is_some() {
+                                    // empty
+                                }
+                                break
+                            }
                         }
-                        break
+                        Ok(None) => break,
+                        Err(_) => {
+                            if write_message(&mut write_stream, LinkOp::KeepAlive).await.is_err() {
+                                while conn_recv.recv().await.is_some() {
+                                    // empty
+                                }
+                                break
+                            }
+                        }
                     }
                 }
             });
@@ -171,6 +184,9 @@ async fn connection(
                                 let _ = conn_send.send(LinkOp::End { id }).await;
                             }
                         }
+                    }
+                    LinkOp::KeepAlive => {
+                        debug!("Keep alive message received from control connection");
                     }
                 }
             }

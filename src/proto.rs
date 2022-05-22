@@ -4,6 +4,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bincode::Options;
 
 pub(crate) const LINK_TIMEOUT: u32 = 20;
+pub(crate) const KEEP_ALIVE_INTERVAL: u32 = 10;
+pub(crate) const KEEP_ALIVE_TIMEOUT: u32 = 20;
 pub(crate) const PROTO_VERSION: u32 = 1;
 
 #[derive(Serialize, Deserialize)]
@@ -61,13 +63,14 @@ pub(crate) enum LinkOp {
         id: LinkId,
         payload: Vec<u8>,
     },
+    KeepAlive,
 }
 
 pub(crate) async fn read_message<T: serde::de::DeserializeOwned>(
     stream: &mut tcp::OwnedReadHalf,
     max_size: usize,
 ) -> Result<Option<T>, ConnectionError> {
-    let size = match stream.read_u32().await {
+    let size = match tokio::time::timeout(std::time::Duration::from_secs(KEEP_ALIVE_TIMEOUT as u64), stream.read_u32()).await? {
         Ok(x) => x as usize,
         Err(err) => {
             if err.kind() == tokio::io::ErrorKind::UnexpectedEof {
@@ -81,7 +84,7 @@ pub(crate) async fn read_message<T: serde::de::DeserializeOwned>(
     }
     let mut buf = Vec::with_capacity(size);
     buf.resize(size, 0);
-    stream.read_exact(&mut buf).await?;
+    tokio::time::timeout(std::time::Duration::from_secs(KEEP_ALIVE_TIMEOUT as u64), stream.read_exact(&mut buf)).await??;
     let ret = bincode::DefaultOptions::new().deserialize::<T>(&buf)?;
     Ok(Some(ret))
 }
@@ -102,6 +105,7 @@ pub(crate) async fn write_message<T: serde::ser::Serialize>(
 
 pub(crate) enum ConnectionError {
     IoError(std::io::Error),
+    TimeoutError(tokio::time::error::Elapsed),
     BincodeError(bincode::Error),
     Custom(String),
 }
@@ -110,6 +114,7 @@ impl std::fmt::Display for ConnectionError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::IoError(x) => write!(f, "{}", x),
+            Self::TimeoutError(x) => write!(f, "{}", x),
             Self::BincodeError(x) => write!(f, "{}", x),
             Self::Custom(x) => write!(f, "{}", x),
         }
@@ -119,6 +124,12 @@ impl std::fmt::Display for ConnectionError {
 impl From<std::io::Error> for ConnectionError {
     fn from(v: std::io::Error) -> Self {
         ConnectionError::IoError(v)
+    }
+}
+
+impl From<tokio::time::error::Elapsed> for ConnectionError {
+    fn from(v: tokio::time::error::Elapsed) -> Self {
+        ConnectionError::TimeoutError(v)
     }
 }
 
