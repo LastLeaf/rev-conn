@@ -3,6 +3,7 @@ use tokio::net::tcp;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use bincode::Options;
 
+#[allow(dead_code)]
 pub(crate) const LINK_TIMEOUT: u32 = 20;
 pub(crate) const KEEP_ALIVE_INTERVAL: u32 = 10;
 pub(crate) const KEEP_ALIVE_TIMEOUT: u32 = 20;
@@ -26,6 +27,7 @@ pub(crate) enum ClientConnKind {
 pub(crate) struct LinkId([u32; 4]);
 
 impl LinkId {
+    #[allow(dead_code)]
     pub(crate) fn new() -> Self {
         let uuid = uuid::Uuid::new_v4().as_u128();
         Self([
