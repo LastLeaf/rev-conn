@@ -185,6 +185,20 @@ async fn connection(
                             }
                         }
                     }
+                    LinkOp::UdpRequest { id, target_service, payload } => {
+                        if let Some(target) = link_target.get(&id) {
+                            if target.send(LinkOp::UdpRequest { id, target_service, payload }).await.is_err() {
+                                debug!("Data connection failed to send UDP request packet (conn id {:?})", id);
+                            }
+                        }
+                    }
+                    LinkOp::UdpResponse { id, payload } => {
+                        if let Some(target) = link_target.get(&id) {
+                            if target.send(LinkOp::UdpResponse { id, payload }).await.is_err() {
+                                debug!("Data connection failed to send UDP response packet (conn id {:?})", id);
+                            }
+                        }
+                    }
                     LinkOp::KeepAlive => {
                         debug!("Keep alive message received from control connection");
                     }

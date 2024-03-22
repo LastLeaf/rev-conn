@@ -65,7 +65,22 @@ pub(crate) enum LinkOp {
         id: LinkId,
         payload: Vec<u8>,
     },
+    UdpRequest {
+        id: LinkId,
+        target_service: String,
+        payload: Vec<u8>,
+    },
+    UdpResponse {
+        id: LinkId,
+        payload: Vec<u8>,
+    },
     KeepAlive,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum LinkKind {
+    Tcp,
+    Udp,
 }
 
 pub(crate) async fn read_message<T: serde::de::DeserializeOwned>(
