@@ -8,6 +8,7 @@ pub(crate) const LINK_TIMEOUT: u32 = 20;
 pub(crate) const KEEP_ALIVE_INTERVAL: u32 = 10;
 pub(crate) const KEEP_ALIVE_TIMEOUT: u32 = 20;
 pub(crate) const PROTO_VERSION: u32 = 1;
+pub(crate) const UDP_TIMEOUT_SECS: u64 = 300;
 
 #[derive(Serialize, Deserialize)]
 pub(crate) struct ClientStartInfo {
@@ -45,7 +46,7 @@ impl std::fmt::Debug for LinkId {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub(crate) enum LinkOp {
     Start {
         id: LinkId,

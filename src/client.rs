@@ -11,8 +11,6 @@ use std::collections::HashMap;
 mod proto;
 use proto::*;
 
-const UDP_TIMEOUT_SECS: u64 = 300;
-
 /// Start rev-conn client
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -139,6 +137,8 @@ impl ControlConnection {
             });
         }
         while let Some(op) = read_message::<LinkOp>(&mut read_stream, u32::MAX as usize).await? {
+            log::trace!("Receive message from control connection: {:?}", op);
+
             // release timeout UDP sockets
             let allow_instant = Instant::now() - Duration::from_secs(UDP_TIMEOUT_SECS);
             udp_link_target.retain(|_, (_, x)| *x > allow_instant);
@@ -225,6 +225,7 @@ impl ControlConnection {
                                                     _ = sleep => { break }
                                                     size = recv.recv(&mut buf) => {
                                                         if let Ok(size) = size {
+                                                            debug!("Receive UDP packet from link {:?} payload length {}", id, size);
                                                             let payload = buf[..size].into();
                                                             if conn_send.send(LinkOp::UdpResponse { id, payload }).await.is_err() {
                                                                 break;
@@ -246,6 +247,7 @@ impl ControlConnection {
                             None
                         }
                     };
+                    debug!("Receive UDP request packet from link {:?} payload length {}", id, payload.len());
                     if let Some((socket, active_instant)) = socket_meta {
                         *active_instant = Instant::now();
                         if socket.send(&payload).await.is_err() {
@@ -254,6 +256,7 @@ impl ControlConnection {
                     }
                 }
                 LinkOp::UdpResponse { id, payload } => {
+                    debug!("Receive UDP response packet from link {:?} payload length {}", id, payload.len());
                     if let Some((socket, addr, active_instant)) = self.udp_link_rev_map.lock().unwrap().get_mut(&id) {
                         *active_instant = Instant::now();
                         if socket.send_to(&payload, *addr).await.is_err() {
@@ -353,6 +356,7 @@ async fn start() {
                                     loop {
                                         match recv.recv_from(&mut buf).await {
                                             Ok((size, addr)) => {
+                                                debug!("Receive UDP packet from {:?} service {}", addr, name);
                                                 let payload = buf[..size].into();
                                                 control_conn.use_udp_service(&name, addr, payload, socket.clone()).await;
                                             }

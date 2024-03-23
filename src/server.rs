@@ -2,8 +2,10 @@ use log::{error, warn, info, debug};
 use clap::Parser;
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::mpsc;
+use tokio::time::Instant;
 use std::sync::{Arc, Mutex};
 use std::collections::HashMap;
+use std::time::Duration;
 
 mod proto;
 use proto::*;
@@ -23,6 +25,7 @@ struct AppConfig {
 struct Services {
     map: HashMap<String, mpsc::Sender<LinkOp>>,
     link_src: HashMap<LinkId, mpsc::Sender<LinkOp>>,
+    udp_link_src_target: HashMap<LinkId, (mpsc::Sender<LinkOp>, mpsc::Sender<LinkOp>, Instant)>,
 }
 
 struct ProvideServices {
@@ -118,6 +121,9 @@ async fn connection(
             let _provide_services = ProvideServices::new(services.clone(), provide, &conn_send, peer_addr);
             let mut link_target = HashMap::new();
             while let Some(op) = read_message::<LinkOp>(&mut read_stream, u32::MAX as usize).await? {
+                log::trace!("Receive message from {}: {:?}", peer_addr, op);
+                let allow_instant = Instant::now() - Duration::from_secs(UDP_TIMEOUT_SECS);
+                services.lock().unwrap().udp_link_src_target.retain(|_, (_, _, x)| *x > allow_instant);
                 match op {
                     LinkOp::Start { id, target_service, timeout_secs } => {
                         let target = services.lock().unwrap().map.get(&target_service).cloned();
@@ -186,14 +192,37 @@ async fn connection(
                         }
                     }
                     LinkOp::UdpRequest { id, target_service, payload } => {
-                        if let Some(target) = link_target.get(&id) {
+                        let target = {
+                            let mut services = services.lock().unwrap();
+                            if let Some((target, _, instant)) = services.udp_link_src_target.get_mut(&id) {
+                                *instant = Instant::now();
+                                Some(target.clone())
+                            } else {
+                                if let Some(s) = services.map.get(&target_service).cloned() {
+                                    services.udp_link_src_target.insert(id, (s.clone(), conn_send.clone(), Instant::now()));
+                                    Some(s)
+                                } else {
+                                    None
+                                }
+                            }
+                        };
+                        if let Some(target) = target {
                             if target.send(LinkOp::UdpRequest { id, target_service, payload }).await.is_err() {
                                 debug!("Data connection failed to send UDP request packet (conn id {:?})", id);
                             }
                         }
                     }
                     LinkOp::UdpResponse { id, payload } => {
-                        if let Some(target) = link_target.get(&id) {
+                        let target = {
+                            let udp_link_src_target = &mut services.lock().unwrap().udp_link_src_target;
+                            if let Some((_, target, instant)) = udp_link_src_target.get_mut(&id) {
+                                *instant = Instant::now();
+                                Some(target.clone())
+                            } else {
+                                None
+                            }
+                        };
+                        if let Some(target) = target {
                             if target.send(LinkOp::UdpResponse { id, payload }).await.is_err() {
                                 debug!("Data connection failed to send UDP response packet (conn id {:?})", id);
                             }
@@ -214,6 +243,7 @@ async fn start() {
     let services = Arc::new(Mutex::new(Services {
         map: HashMap::new(),
         link_src: HashMap::new(),
+        udp_link_src_target: HashMap::new(),
     }));
     let listener = TcpListener::bind(&app_config.addr).await.unwrap();
     info!("Server started on {}", listener.local_addr().unwrap());

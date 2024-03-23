@@ -15,6 +15,10 @@ path = "src/server.rs"
 name = "rev-conn-client"
 path = "src/client.rs"
 
+[[bin]]
+name = "rev-conn-udp-tests"
+path = "src/test-utils/udp.rs"
+
 [dependencies]
 tokio = { version = "1", features = ["macros", "io-util", "rt-multi-thread", "net", "sync", "time"] }
 futures = "0.3"
